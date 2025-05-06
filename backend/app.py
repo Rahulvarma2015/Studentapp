@@ -1,64 +1,20 @@
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
-
+from flask import Flask, jsonify, request
+from config import config
+from models import User, db
 
 app = Flask(__name__)
-CORS(app)  
+app.config.from_object(config)
+db.init_app(app)
 
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://neondb_owner:npg_Tt17iCnZeuUD@ep-quiet-sunset-a4w3h99s-pooler.us-east-1.aws.neon.tech/studentdb?sslmode=require'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-# Student Model
-class Student(db.Model):
-    __tablename__ = 'students'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    grade = db.Column(db.String(10), nullable=False)
-    subject = db.Column(db.String(100), nullable=False)
-    marks = db.Column(db.Integer, nullable=False)
-
-    def __repr__(self):
-        return f'<Student {self.name}>'
-
-
-with app.app_context():
-    try:
-        db.create_all()
-        print("Database tables created successfully")
-    except Exception as e:
-        print(f"Error creating tables: {e}")
-
-# Routes
-@app.route('/api/students', methods=['GET'])
+@app.route('/students', methods=['GET'])
 def get_students():
-    students = Student.query.all()
-    return jsonify([{
-        'id': student.id,
-        'name': student.name,
-        'grade': student.grade,
-        'subject': student.subject,
-        'marks': student.marks
-    } for student in students])
+    students = User.query.all()
+    return jsonify([student.to_dict() for student in students])
 
-@app.route('/api/students/<int:id>', methods=['GET'])
-def get_student(id):
-    student = Student.query.get_or_404(id)
-    return jsonify({
-        'id': student.id,
-        'name': student.name,
-        'grade': student.grade,
-        'subject': student.subject,
-        'marks': student.marks
-    })
-
-@app.route('/api/students', methods=['POST'])
-def add_student():
+@app.route('/students', methods=['POST'])
+def create_student():
     data = request.get_json()
-    new_student = Student(
+    new_student = User(
         name=data['name'],
         grade=data['grade'],
         subject=data['subject'],
@@ -66,30 +22,35 @@ def add_student():
     )
     db.session.add(new_student)
     db.session.commit()
-    return jsonify({
-        'message': 'Student added successfully',
-        'id': new_student.id
-    }), 201
+    return jsonify(new_student.to_dict()), 201
 
-@app.route('/api/students/<int:id>', methods=['PUT'])
-def update_student(id):
-    student = Student.query.get_or_404(id)
+@app.route('/students/<int:student_id>', methods=['GET'])
+def get_student(student_id):
+    student = User.query.get_or_404(student_id)
+    return jsonify(student.to_dict())
+
+@app.route('/students/<int:student_id>', methods=['PUT'])
+def update_student(student_id):
     data = request.get_json()
-    
+    student = User.query.get_or_404(student_id)
     student.name = data['name']
     student.grade = data['grade']
     student.subject = data['subject']
     student.marks = data['marks']
-    
     db.session.commit()
-    return jsonify({'message': 'Student updated successfully'})
+    return jsonify({
+        "message": "Student updated successfully",
+        "student": student.to_dict()
+    }), 200
 
-@app.route('/api/students/<int:id>', methods=['DELETE'])
-def delete_student(id):
-    student = Student.query.get_or_404(id)
+@app.route('/students/<int:student_id>', methods=['DELETE'])
+def delete_student(student_id):
+    student = User.query.get_or_404(student_id)
     db.session.delete(student)
     db.session.commit()
-    return jsonify({'message': 'Student deleted successfully'})
+    return jsonify(message='Student deleted successfully'), 200
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, port=5003)
